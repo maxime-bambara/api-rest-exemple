@@ -14,7 +14,16 @@ use Symfony\Component\Serializer\Annotation\Groups;
 /**
  * @ApiResource(
  *     normalizationContext={"groups"={"article:read"}},
- *     denormalizationContext={"groups"={"article:write"}}
+ *     denormalizationContext={"groups"={"article:write"}},
+ *     collectionOperations={
+ *         "get",
+ *         "post"={"security"="is_granted('ROLE_USER')"}
+ *     },
+ *     itemOperations={
+ *         "get",
+ *         "put"={"security"="is_granted('edit', object)"},
+ *         "delete"={"security"="is_granted('delete', object)"}
+ *     }
  * )
  * @ORM\Entity(repositoryClass=ArticleRepository::class)
  */
@@ -89,6 +98,13 @@ class Article
      * @Groups({"article:read", "article:write"})
      */
     private $tags;
+
+    /**
+     * @ORM\ManyToOne(targetEntity=User::class, inversedBy="articles")
+     * @ORM\JoinColumn(nullable=false)
+     * @Groups("article:read")
+     */
+    private $author;
 
     public function __construct()
     {
@@ -249,6 +265,18 @@ class Article
     public function removeTag(Tag $tag): self
     {
         $this->tags->removeElement($tag);
+
+        return $this;
+    }
+
+    public function getAuthor(): ?User
+    {
+        return $this->author;
+    }
+
+    public function setAuthor(?User $author): self
+    {
+        $this->author = $author;
 
         return $this;
     }
