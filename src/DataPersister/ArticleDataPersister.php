@@ -1,9 +1,9 @@
 <?php
-
-// src/DataPersister
+// src/DataPersister/ArticleDataPersister.php
 
 namespace App\DataPersister;
 
+use App\Entity\Tag;
 use App\Entity\Article;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -11,35 +11,37 @@ use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\String\Slugger\SluggerInterface;
 use ApiPlatform\Core\DataPersister\ContextAwareDataPersisterInterface;
 
+/**
+ *
+ */
 class ArticleDataPersister implements ContextAwareDataPersisterInterface
 {
     /**
      * @var EntityManagerInterface
      */
-    private $em;
+    private $_entityManager;
 
     /**
-     *
      * @param SluggerInterface
      */
-    private $slugger;
+    private $_slugger;
 
     /**
-     *
      * @param Request
      */
-    private $request;
+    private $_request;
 
     public function __construct(
-        EntityManagerInterface $em,
+        EntityManagerInterface $entityManager,
         SluggerInterface $slugger,
         RequestStack $request
     ) {
-        $this->em = $em;
-        $this->slugger = $slugger;
-        $this->request = $request->getCurrentRequest();
+        $this->_entityManager = $entityManager;
+        $this->_slugger = $slugger;
+        $this->_request = $request->getCurrentRequest();
     }
-    
+
+
     /**
      * {@inheritdoc}
      */
@@ -57,18 +59,31 @@ class ArticleDataPersister implements ContextAwareDataPersisterInterface
         if (!$data->getIsPublished()) {
             $data->setSlug(
                 $this
-                    ->slugger
+                    ->_slugger
                     ->slug(strtolower($data->getTitle())). '-' .uniqid()
             );
         }
 
         // Set the updatedAt value if it's not a POST request
-        if ($this->request->getMethod() !== 'POST') {
+        if ($this->_request->getMethod() !== 'POST') {
             $data->setUpdatedAt(new \DateTime());
         }
 
-        $this->em->persist($data);
-        $this->em->flush();
+        $tagRepository = $this->_entityManager->getRepository(Tag::class);
+        foreach ($data->getTags() as $tag) {
+            $t = $tagRepository->findOneByLabel($tag->getLabel());
+
+            // if the tag exists, don't persist it
+            if ($t !== null) {
+                $data->removeTag($tag);
+                $data->addTag($t);
+            } else {
+                $this->_entityManager->persist($tag);
+            }
+        }
+
+        $this->_entityManager->persist($data);
+        $this->_entityManager->flush();
     }
 
     /**
@@ -76,7 +91,7 @@ class ArticleDataPersister implements ContextAwareDataPersisterInterface
      */
     public function remove($data, array $context = [])
     {
-        $this->em->remove($data);
-        $this->em->flush();
+        $this->_entityManager->remove($data);
+        $this->_entityManager->flush();
     }
 }
